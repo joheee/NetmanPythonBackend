@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+  netman_python_image:
+    build: .
+    container_name: netman_python_backend
+    # image: johedotcom/netman-python-backend-repository:latest
+    restart: always
+    ports:
+     - "7010:80"
