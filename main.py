@@ -1,30 +1,46 @@
 from typing import Union
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 import subprocess
 import uvicorn
+from pypsexec.client import Client
 
 app = FastAPI()
 
-ALLOWED_COMMANDS = {
-    "explorer": "start explorer",
-    "ping": "ping 127.0.0.1",
-    "ipconfig": "ipconfig",
-    "shutdown": "shutdown -r -t 0",
-}
+class CommandRequest(BaseModel):
+    command:str
 
-@app.get("/")
-def execute_command(cmd: str = Query("explorer", description="Allowed commands: explorer, ping, ipconfig")):
-    if cmd not in ALLOWED_COMMANDS:
-        raise HTTPException(status_code=400, detail="Invalid command")
 
-    process = subprocess.Popen(ALLOWED_COMMANDS[cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+@app.post("/")
+def execute_command(request: CommandRequest):
+
+    client = Client("10.21.45.187", username=".\\adminHD1", password="HD1intelsp")
+    client.connect()
+    client.create_service()
+    stdout, stderr, rc = client.run_executable("cmd.exe", arguments=f"/c {request.command}")
+    client.remove_service()
+    client.disconnect()
+
+    return {
+        "return_code":rc,
+        "command":request,
+        "output":stdout.decode(),
+        "error":stderr.decode()
+    }
+
+@app.post("/psexec")
+def execute_command(request: CommandRequest):
+
+    command_bind = f"C:\Windows\System32\PsExec.exe -h \\10.21.45.187 -u testuser -p testuser -i 1 cmd /c {request.command}"
+
+    process = subprocess.Popen(command_bind, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
 
     return {
-        "command": cmd,
-        "return_code": process.returncode,
-        "stdout": stdout.decode(),
-        "stderr": stderr.decode() if stderr else None
+        "return_code":process.returncode,
+        "command":command_bind,
+        "output":stdout.decode(),
+        "error":stderr.decode(),
     }
 
 @app.get("/items/{item_id}")
